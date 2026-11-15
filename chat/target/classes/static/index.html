@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Spring Boot Chat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 40px; }
+        #chat-box { border: 1px solid #ccc; height: 300px; overflow-y: scroll; padding: 10px; margin-bottom: 10px; }
+        .system { color: gray; font-style: italic; }
+    </style>
+</head>
+<body>
+
+<h2>Live Spring Boot Chat</h2>
+
+<div id="username-page">
+    <input type="text" id="name" placeholder="Enter your name" />
+    <button onclick="connect()">Join Chat</button>
+</div>
+
+<div id="chat-page" style="display:none;">
+    <div id="chat-box"></div>
+    <input type="text" id="message" placeholder="Type a message..." />
+    <button onclick="sendMessage()">Send</button>
+</div>
+
+<script>
+    let stompClient = null;
+    let username = null;
+
+    function connect() {
+        username = document.getElementById('name').value.trim();
+        if(!username) return;
+
+        document.getElementById('username-page').style.display = 'none';
+        document.getElementById('chat-page').style.display = 'block';
+
+        const socket = new SockJS('/ws');
+        stompClient = Stomp.over(socket);
+
+        stompClient.connect({}, function () {
+            stompClient.subscribe('/topic/public', onMessageReceived);
+
+            stompClient.send("/app/chat.addUser", {}, JSON.stringify({
+                sender: username,
+                type: 'JOIN'
+            }));
+        });
+    }
+
+    function sendMessage() {
+        const messageInput = document.getElementById('message');
+        const messageContent = messageInput.value.trim();
+
+        if (messageContent && stompClient) {
+            const chatMessage = {
+                sender: username,
+                content: messageContent,
+                type: 'CHAT'
+            };
+            stompClient.send("/app/chat.sendMessage", {}, JSON.stringify(chatMessage));
+            messageInput.value = '';
+        }
+    }
+
+    function onMessageReceived(payload) {
+        const message = JSON.parse(payload.body);
+        const chatBox = document.getElementById('chat-box');
+        const messageElement = document.createElement('p');
+
+        if (message.type === 'JOIN') {
+            messageElement.className = 'system';
+            messageElement.textContent = message.content;
+        } else {
+            messageElement.textContent = message.sender + ': ' + message.content;
+        }
+
+        chatBox.appendChild(messageElement);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+</script>
+</body>
+</html>
